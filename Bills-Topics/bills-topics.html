@@ -1,0 +1,285 @@
+<!doctype html>
+<html>
+  <head>
+
+    <!-- some basic stuff  -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SVG with D3</title>
+    <link rel="icon" type="image/x-icon" href="https://raw.githubusercontent.com/celyvelez/celyvelez.github.io/main/images/logo.png" alt="Favicon">
+    <link rel="stylesheet" href="../css/mystyles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ionicons/2.0.1/css/ionicons.min.css">
+    <style>
+        .hero {
+            background-color: hsl(180, 69%, 40%);
+            color: white;
+        }
+        .hero .navbar-item:hover {
+            background-color: #134D4D;
+            color: white;
+        }
+        .hero h1 {
+            color: white;
+        }
+        .navbar {
+            background-color: hsl(180, 69%, 40%);
+        }
+        .navbar-item a {
+            color: white;
+        }
+        a {
+            color:#75D5D5;
+        }
+        a:hover {
+            color: #134D4D;
+        }
+        .container h1 {
+            color: #134D4D;
+        }
+        .container h2 {
+            color:#269999;
+        }
+        .button {
+            border-color:#75D5D5;
+            color:#75D5D5;
+        }
+        .button:hover {
+            border-color:#75D5D5;
+            background-color:#75D5D5;
+            color: white
+        }
+        .tags .tag {
+            background-color: #E2F6F6;
+            color:#269999;
+        }
+        .footer-basic {
+            padding: 40px 0;
+            background-color: #ffffff;
+            color: #688D8D;
+        }
+
+        .footer-basic ul {
+            padding: 0;
+            list-style: none;
+            text-align: center;
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 0;
+        }
+
+        .footer-basic li {
+            padding: 0 10px;
+        }
+
+        .footer-basic ul a {
+            color: inherit;
+            text-decoration: none;
+            opacity: 0.8;
+        }
+
+        .footer-basic ul a:hover {
+            opacity: 1;
+        }
+
+        .footer-basic .social {
+            text-align: center;
+            padding-bottom: 20px;
+        }
+
+        .footer-basic .social>a {
+            font-size: 24px;
+            width: 40px;
+            height: 40px;
+            line-height: 40px;
+            display: inline-block;
+            text-align: center;
+            border-radius: 50%;
+            border: 1px solid #ccc;
+            margin: 0 8px;
+            color: inherit;
+            opacity: 0.75;
+        }
+
+        .footer-basic .social>a:hover {
+            opacity: 0.9;
+        }
+
+        .footer-basic .copyright {
+            margin: top 10px;
+            text-align: center;
+            font-size: 13px;
+            color: #aaa;
+            margin: bottom 0px;
+        }
+
+    </style>
+    <!-- 
+      add your stylesheet 
+      base.css loads the basic stuff
+      you can tweak your own css in custom.css
+      WARNING: the order of the stylesheets matters
+    -->
+    <!-- <link rel="stylesheet" href="../base.css">
+    <link rel="stylesheet" href="../custom.css"> -->
+
+    <!-- Step 2: add your d3 script below -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+    <!-- your JS code that uses d3 to manipulate data -->
+    <script>
+
+      // Step 4. load your data with d3.csv()
+      d3.csv("topic.csv")
+        .then(data => {
+          // check if the data is loaded:
+          console.log(data)
+          // == your code happens below ==
+        const margin = {top: 160, right: 30, bottom: 20, left:110},
+            width = 700 - margin.left - margin.right,
+            height = 700 - margin.top - margin.bottom;
+
+        const myChart = d3
+            .select('#my-svg-chart')
+            .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+                .attr("transform",
+                    `translate(${margin.left}, ${margin.top})`);
+
+        // Get the different categories and count them
+        const categories = data.columns
+        const n = categories.length
+
+        // Add X axis
+        const x = d3.scaleLinear()
+            .domain([-5, 10])
+            .range([ 0, width ]);
+        myChart.append("g")
+            .attr("transform", `translate(0, ${height})`)
+            .call(d3.axisBottom(x));
+
+        // Create a Y scale for densities
+        const y = d3.scaleLinear()
+            .domain([0, 1])
+            .range([ height, 0]);
+
+        // Create the Y axis for names
+        const yName = d3.scaleBand()
+            .domain(categories)
+            .range([0, height])
+            .paddingInner(1)
+        myChart.append("g")
+            .call(d3.axisLeft(yName));
+
+        
+        // Compute kernel density estimation for each column:
+        const kde = kernelDensityEstimator(kernelEpanechnikov(2.5), x.ticks(40)) // increase this 40 for more accurate density.
+        const allDensity = []
+        for (i = 0; i < n; i++) {
+            key = categories[i]
+            density = kde( data.map(function(d){  return d[key]; }) )
+            allDensity.push({key: key, density: density})
+        }
+
+        // Add areas
+        myChart.selectAll("areas")
+            .data(allDensity)
+            .join("path")
+            .attr("transform", function(d){return(`translate(0, ${(yName(d.key)-height)})`)})
+            .datum(function(d){return(d.density)})
+            .attr("fill", "#33CCCC")
+            .attr("stroke", "#000")
+            .attr("stroke-width", 1)
+            .attr("d",  d3.line()
+                .curve(d3.curveBasis)
+                .x(function(d) { return x(d[0]); })
+                .y(function(d) { return y(d[1]); })
+            )
+      })
+
+      // This is what I need to compute kernel density estimation
+    function kernelDensityEstimator(kernel, X) {
+    return function(V) {
+        return X.map(function(x) {
+        return [x, d3.mean(V, function(v) { return kernel(x - v); })];
+        });
+    };
+    }
+    function kernelEpanechnikov(k) {
+    return function(v) {
+        return Math.abs(v /= k) <= 1 ? 0.75 * (1 - v * v) / k : 0;
+    };
+    }
+    </script>
+    
+  </head>
+  <body>
+    <section class="hero is-small">
+        <!-- Hero -->
+        <div class="hero-head">
+            <nav class="navbar">
+                <!-- <div class="container"> -->
+                    <div class="navbar-brand">
+                        <div class="navbar-item">
+                            <img src="https://raw.githubusercontent.com/celyvelez/celyvelez.github.io/main/images/logo.png" alt="Logo">
+                        </div>
+                        <span class="navbar-burger" data-target="navbarMenuHeroA">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
+                    </div>
+                    <div id="navbarMenuHeroA" class="navbar-menu">
+                        <div class="navbar-end">
+                            <div class="navbar-item">
+                                <a href="https://celyvelez.github.io/">
+                                    Home
+                                </a>
+                            </div>
+                            <div class="navbar-item">
+                                <a href="https://celyvelez.github.io/about">
+                                    About
+                                </a>
+                            </div>
+                            <div class="navbar-item">
+                                <a href="https://celyvelez.github.io/lede">
+                                    Lede
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                <!-- </div> -->
+            </nav>
+        </div>
+        <div class="hero-body">
+            <h1 class="title is-1">Lede 2023</h1>
+        </div>  
+      </section>
+    <div class="container">
+        <!-- <section class="section"> -->
+          <div class="columns content">
+            <div class="column is-one-fifth">
+            </div> 
+            <div class="column is-three-fifths">
+                <br>
+                <h1>Topic Density</h1>
+                <div class="container">
+                    <!-- <section class="section"> -->
+                      <div class="content">
+                        <p>By: Sara Cely | July 11, 2023
+                        </p>
+                      </div>
+                    <!-- </section> -->
+                    <div class="container">
+                      <!-- <section class="section"> -->
+                        <p>For my <a href="file:///Users/saracely/Documents/GitHub/celyvelez.github.io/Lede/Project%2002/colombian-bills-2018-2022.html" target="_blank" alt="Lede project number 2">second project</a> I looked at the bills presented during the 2018-2022 Congress period. I used Natural Language Processing to analyse the title and abstract for each of the 1239 bills and determine 25 overall topics, each with 10 concepts. The chart below shows the density representation of the matrix obtained through NLP.</p>
+                        <div id="my-svg-chart"></div>
+                    </div>
+                  </div>
+            </div>  
+          </div>
+        <!-- </section> -->
+      </div>
+  </body>
+</html>
